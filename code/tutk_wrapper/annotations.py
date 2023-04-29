@@ -1,11 +1,8 @@
-from exceptions import (
+from .exceptions import (
     TutkAVLibraryNotInitializedException,
     TutkLibraryNotLoadedException
 )
-from wrapper import (
-    av_initialized,
-    library_instance
-)
+import tutk_wrapper.shared as shared
 
 
 def requires_av_initialized(func):
@@ -16,7 +13,7 @@ def requires_av_initialized(func):
         *args,
         **kwargs
     ):
-        if not av_initialized:
+        if not shared.av_initialized:
             raise TutkAVLibraryNotInitializedException()
         
         return func(
@@ -35,7 +32,7 @@ def requires_tutk_library(func):
         *args,
         **kwargs
     ):
-        if not library_instance:
+        if not shared.library_instance:
             raise TutkLibraryNotLoadedException()
         
         return func(

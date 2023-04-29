@@ -2,7 +2,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-def debug_log(func):
+def log_args(func):
     """
     Logs arguments passed to the wrapped function.
     """
