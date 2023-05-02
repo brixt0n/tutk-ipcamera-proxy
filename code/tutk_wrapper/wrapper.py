@@ -7,7 +7,8 @@ from .annotations import (
 )
 from .constants import (
     AVErrorCode,
-    IOTCErrorCode
+    IOTCErrorCode,
+    AvIOCtrlMsgType
 )
 from .exceptions import (
     TutkLibraryNotLoadedException,
@@ -50,14 +51,14 @@ def avInitialize(max_channel_num: c.c_int = 1) -> None:
     """
     func = shared.library_instance.avInitialize
     func.argtypes = (c.c_int,)
-    func.restype = AVErrorCode
+    func.restype = c.c_int
 
-    return_code = shared.library_instance.avInitialize(max_channel_num)
+    rc: c.c_int = shared.library_instance.avInitialize(max_channel_num)
 
-    if return_code != AVErrorCode.AV_ER_NoERROR:
-        raise TutkLibraryException(AVErrorCode(return_code).name)
+    if rc < AVErrorCode.AV_ER_NoERROR:
+        raise TutkLibraryException(AVErrorCode(rc).name)
     
-    av_initialized = True
+    shared.av_initialized = True
 
 
 @requires_av_initialized
@@ -69,12 +70,46 @@ def avDeInitialize() -> None:
     """
     func = shared.library_instance.avDeInitialize
     func.argtypes = None
-    func.restype = AVErrorCode
+    func.restype = c.c_int
 
-    return_code = shared.library_instance.avDeInitialize()
+    rc: c.c_int = shared.library_instance.avDeInitialize()
 
-    if return_code != AVErrorCode.AV_ER_NoERROR:
-        raise TutkLibraryException(AVErrorCode(return_code).name)
+    if rc != AVErrorCode.AV_ER_NoERROR:
+        raise TutkLibraryException(AVErrorCode(rc).name)
+
+
+@requires_av_initialized
+@requires_tutk_library
+@log_args
+def avSendIOCtrl(
+    channel_id: c.c_int,
+    io_ctrl_type: c.c_uint,
+    io_ctrl_buffer: c.POINTER(c.c_char),
+    io_ctrl_buffer_size: c.c_int
+) -> None:
+    """
+    This function is used by AV servers or AV clients to send a AV IO control.
+    """
+    func = shared.library_instance.avSendIOCtrl
+    func.argtypes = (
+        c.c_int,
+        c.c_uint,
+        c.POINTER(c.c_char),
+        c.c_int
+    )
+    func.restype = c.c_int
+
+    rc: c.c_int = shared.library_instance.avSendIOCtrl(
+        channel_id,
+        io_ctrl_type,
+        io_ctrl_buffer,
+        io_ctrl_buffer_size
+    )
+
+    if rc != AVErrorCode.AV_ER_NoERROR:
+        raise TutkLibraryException(AVErrorCode(rc).name)
+    
+    return rc
 
 
 @requires_av_initialized
@@ -107,7 +142,7 @@ def avClientStart2(
     )
     func.restype = c.c_int
 
-    return_code = shared.library_instance.avClientStart2(
+    rc: c.c_int = shared.library_instance.avClientStart2(
         session_id,
         device_account_name,
         device_password,
@@ -117,10 +152,10 @@ def avClientStart2(
         resend_on
     )
 
-    if return_code < AVErrorCode.AV_ER_NoERROR:
-        raise TutkLibraryException(AVErrorCode(return_code).name)
+    if rc < AVErrorCode.AV_ER_NoERROR:
+        raise TutkLibraryException(AVErrorCode(rc).name)
     
-    return return_code
+    return rc
 
 
 @requires_tutk_library
@@ -134,12 +169,31 @@ def IOTC_Connect_ByUID(device_uid: c.POINTER(c.c_char)) -> c.c_int:
     func.argtypes = (c.POINTER(c.c_char),)
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Session_Check(device_uid)
+    rc: c.c_int = shared.library_instance.IOTC_Connect_ByUID(device_uid)
 
-    if return_code < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
+    if rc < IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
     
-    return return_code
+    return rc
+
+
+@requires_tutk_library
+@log_args
+def IOTC_Get_SessionID() -> c.c_int:
+    """
+    This function is for a client to get a free session ID used for a 
+    parameter of IOTC_Connect_ByUID_Parallel().
+    """
+    func = shared.library_instance.IOTC_Get_SessionID
+    func.argtypes = None
+    func.restype = c.c_int
+
+    rc: c.c_int = shared.library_instance.IOTC_Get_SessionID()
+
+    if rc < IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
+    
+    return rc
 
 
 @requires_tutk_library
@@ -164,15 +218,15 @@ def IOTC_Connect_ByUID_Parallel(
     )
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Connect_ByUID_Parallel(
+    rc: c.c_int = shared.library_instance.IOTC_Connect_ByUID_Parallel(
         device_uid,
         session_id
     )
 
-    if return_code < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
+    if rc < IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
     
-    return return_code
+    return rc
 
 
 @requires_tutk_library
@@ -180,7 +234,7 @@ def IOTC_Connect_ByUID_Parallel(
 def IOTC_Session_Check(
     session_id: c.c_int,
     session_info: c.POINTER(st_SInfo)
-) -> c.c_int:
+) -> None:
     """
     A device or a client may use this function to check if the IOTC session
     is still alive as well as getting the IOTC session info.
@@ -192,51 +246,49 @@ def IOTC_Session_Check(
     )
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Session_Check(
+    rc: c.c_int = shared.library_instance.IOTC_Session_Check(
         session_id,
         session_info
     )
 
-    if return_code != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
-    
-    return return_code
+    if rc != IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
 
 
 @requires_tutk_library
 @log_args
 def IOTC_Lan_Search2(
-    search_info_array: c.POINTER(c.c_char),
+    search_info_array: c.POINTER(st_LanSearchInfo2),
     search_info_size: c.c_int,
     timeout_ms: c.c_int
-) -> int:
+) -> c.c_int:
     """
     When client and devices are in LAN, client can search devices and their 
     name by calling this function.
     """
     func = shared.library_instance.IOTC_Lan_Search2
     func.argtypes = (
-        c.POINTER(c.c_char),
+        c.POINTER(st_LanSearchInfo2),
         c.c_int,
         c.c_int
     )
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Lan_Search2(
+    rc: c.c_int = shared.library_instance.IOTC_Lan_Search2(
         search_info_array,
         search_info_size,
         timeout_ms
     )
 
-    if return_code < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
-    
-    return return_code
+    if rc < IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
+
+    return rc
 
 
 @requires_tutk_library
 @log_args
-def IOTC_Initialize2(udp_port: c.c_ushort = 0) -> int:
+def IOTC_Initialize2(udp_port: c.c_ushort = 0) -> c.c_int:
     """
     This function is used by devices or clients to initialize IOTC
     module and shall be called before any IOTC module related
@@ -246,17 +298,17 @@ def IOTC_Initialize2(udp_port: c.c_ushort = 0) -> int:
     func.argtypes = (c.c_ushort,)
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Initialize2(udp_port)
+    rc: c.c_int = shared.library_instance.IOTC_Initialize2(udp_port)
 
-    if return_code != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
+    if rc != IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
     
-    return return_code
+    return rc
 
 
 @requires_tutk_library
 @log_args
-def IOTC_DeInitialize() -> int:
+def IOTC_DeInitialize() -> c.c_int:
     """
     IOTC_DeInitialize() will automatically close all IOTC sessions
     in local site while the remote site will find sessions have
@@ -268,12 +320,12 @@ def IOTC_DeInitialize() -> int:
     func.argtypes = None
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_DeInitialize()
+    rc: c.c_int = shared.library_instance.IOTC_DeInitialize()
 
-    if return_code != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
+    if rc != IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
     
-    return return_code
+    return rc
 
 
 @requires_tutk_library
@@ -281,7 +333,7 @@ def IOTC_DeInitialize() -> int:
 def IOTC_Session_Channel_ON(
     session_id: c.c_int,
     channel_id: c.c_ubyte
-) -> int:
+) -> c.c_int:
     """
     A device or a client uses this function to turn on a IOTC channel
     before sending or receiving data through this IOTC channel.
@@ -293,20 +345,20 @@ def IOTC_Session_Channel_ON(
     )
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Session_Channel_ON(
+    rc: c.c_int = shared.library_instance.IOTC_Session_Channel_ON(
         session_id,
         channel_id
     )
 
-    if return_code != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
+    if rc != IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
     
-    return return_code
+    return rc
 
 
 @requires_tutk_library
 @log_args
-def IOTC_Session_Get_Free_Channel(session_id: c.c_int) -> int:
+def IOTC_Session_Get_Free_Channel(session_id: c.c_int) -> c.c_int:
     """
     A device or a client uses this function to get a free IOTC channel
     in a specified IOTC session. By default, IOTC channel of ID 0 is turned on
@@ -318,12 +370,13 @@ def IOTC_Session_Get_Free_Channel(session_id: c.c_int) -> int:
     func.argtypes = (c.c_int,)
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Session_Get_Free_Channel(session_id)
+    rc: c.c_int = \
+        shared.library_instance.IOTC_Session_Get_Free_Channel(session_id)
 
-    if return_code < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
+    if rc < IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)
     
-    return return_code
+    return rc
 
 
 @requires_tutk_library
@@ -336,7 +389,8 @@ def IOTC_Session_Close(session_id: c.c_int) -> None:
     func.argtypes = (c.c_int,)
     func.restype = c.c_int
 
-    return_code = shared.library_instance.IOTC_Session_Close(session_id)
+    rc: c.c_int = \
+        shared.library_instance.IOTC_Session_Close(session_id)
 
-    if return_code != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(return_code).name)
+    if rc != IOTCErrorCode.IOTC_ER_NoERROR:
+        raise TutkLibraryException(IOTCErrorCode(rc).name)

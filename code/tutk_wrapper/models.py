@@ -1,7 +1,5 @@
 import ctypes as c
 
-p_c_str = c.POINTER(c.c_char)
-
 
 class st_SInfo(c.Structure):
     """
@@ -70,8 +68,3 @@ class st_LanSearchInfo2(c.Structure):
         ("DeviceName", c.c_byte * 129),
         ("Reserved", c.c_byte)
     ]
-
-    @classmethod
-    def deserialize(cls, buf):
-        inst = cls.from_buffer(buf)
-        return inst
