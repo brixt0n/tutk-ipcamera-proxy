@@ -107,6 +107,8 @@ class AVErrorCode(IntEnum):
 
 
 class AvIOCtrlMsgType(IntEnum):
+    IOTYPE_INNER_SND_DATA_DELAY = 0xFF
+    
     IOTYPE_USER_IPCAM_START = 0x01FF
     IOTYPE_USER_IPCAM_STOP = 0x02FF
     IOTYPE_USER_IPCAM_AUDIOSTART = 0x0300
@@ -184,7 +186,7 @@ class AvIOCtrlMsgType(IntEnum):
 
     IOTYPE_USER_IPCAM_EVENT_REPORT = 0x1FFF # Device Event Report Msg
     IOTYPE_USER_IPCAM_RECEIVE_FIRST_IFRAME = 0x1002 # Send from client, used to talk to device that
-                                                            # client had received the first I frame
+                                     # client had received the first I frame
     
     IOTYPE_USER_IPCAM_GET_FLOWINFO_REQ = 0x0390
     IOTYPE_USER_IPCAM_GET_FLOWINFO_RESP = 0x0391
@@ -194,7 +196,6 @@ class AvIOCtrlMsgType(IntEnum):
     IOTYPE_USER_IPCAM_GET_TIMEZONE_RESP = 0x3A1
     IOTYPE_USER_IPCAM_SET_TIMEZONE_REQ = 0x3B0
     IOTYPE_USER_IPCAM_SET_TIMEZONE_RESP = 0x3B1
-    
 
     IOTYPE_USER_IPCAM_GET_SAVE_DROPBOX_REQ = 0x500
     IOTYPE_USER_IPCAM_GET_SAVE_DROPBOX_RESP = 0x501

@@ -1,11 +1,17 @@
 from dataclasses import dataclass
+import time
 import tutk_wrapper.wrapper as tw
 import tutk_wrapper.models as tm
 import tutk_wrapper.exceptions as te
 import tutk_wrapper.constants as tc
 import ctypes as c
 from utils.annotations import log_args
-from .constants import IOTCSessionMode
+from .constants import (
+    IOTCSessionMode,
+    StreamFormat,
+    FRAME_BUFFER_SIZE,
+    STREAM_LOG_INTERVAL
+)
 from typing import BinaryIO
 import logging
 
@@ -15,6 +21,17 @@ class TutkDeviceSettings():
     username: str = None
     password: str = None
     timeout_s: int = 5
+
+
+@dataclass
+class TutkDeviceStreamInfo():
+    frames_received: int = 0
+    fps: int = 0
+    last_frame_jpg: bytes = None
+    last_frame_received_time: int = 0
+    last_frame_size: int = 0
+    dropped_frames: int = 0
+    video_format: StreamFormat = StreamFormat.MEDIA_CODEC_UNKNOWN
 
 
 @dataclass
@@ -46,10 +63,15 @@ class TutkDevice():
         self.friendly_name = friendly_name
         self.device_settings = device_settings
         self.device_state: TutkDeviceState = TutkDeviceState()
+        self.stream_info: TutkDeviceStreamInfo = TutkDeviceStreamInfo()
     
     @log_args
     def _reset_state(self) -> None:
         self.device_state = TutkDeviceState()
+    
+    @log_args
+    def _reset_stream_info(self) -> None:
+        self.device_state.stream_info = TutkDeviceStreamInfo()
 
     @log_args
     def disconnect(self):
@@ -64,6 +86,12 @@ class TutkDevice():
         Checks device SID is active.
         """
         self.log.info(f'checking session')
+
+        if self.device_state.device_sid == None:
+            self._reset_state()
+            self.log.warn(f'session is not valid')
+            return False
+
         ses_info: tm.st_SInfo = tm.st_SInfo()
 
         try:
@@ -136,6 +164,12 @@ class TutkDevice():
         dest_file: BinaryIO,
         blocking: bool = True
     ) -> None:
+        if self.device_state.streaming:
+            self.log.warn('device already streaming')
+            return
+            
+        self._reset_stream_info()
+        self.device_state.streaming = True
         self.log.info('checking session validity')
 
         if not self.check_session():
@@ -143,9 +177,8 @@ class TutkDevice():
             return
         
         self.log.info('session is valid')
-
-        resend: c.c_int = c.c_int(0)
-        self.log.info(f'attempting to start av client')
+        self.log.info(f'attempting to get an av channel')
+        resend = c.c_int()
 
         try:
             channel_id: int = tw.avClientStart2(
@@ -155,28 +188,109 @@ class TutkDevice():
                 self.device_settings.timeout_s,
                 None,
                 0,
-                c.byref(resend)
+                resend
             )
         except te.TutkLibraryException as e:
             self.log.warn(f'got tutk library exception: {e}')
+            self._reset_state()
             return
 
         self.device_state.channel_id = channel_id
-        self.device_state.resend_on = resend == 1
-        self.log.info(f'started av client, current state: {self.device_state}')
+        self.device_state.resend_on = resend.value == 1
+        self.log.info(f'got av channel, device state: {self.device_state}')
+        self.log.info(f'attempting to clean av client buffer')
 
-        buffer = (c.c_char * 8)()
+        try:
+            tw.avClientCleanBuf(self.device_state.channel_id)
+        except te.TutkLibraryException as e:
+            self.log.warn(f'got tutk library exception: {e}')
+            self._reset_state()
+            return
+
+        self.log.info(f'cleaned av client buffer')
         self.log.info(f'attempting to send ioctrlmsg to start video')
+        io_buffer = (c.c_char * 8)()
 
         try:
             tw.avSendIOCtrl(
                 self.device_state.channel_id,
                 tc.AvIOCtrlMsgType.IOTYPE_USER_IPCAM_START,
-                buffer,
+                io_buffer,
                 8
             )
         except te.TutkLibraryException as e:
             self.log.warn(f'got tutk library exception: {e}')
+            self._reset_state()
             return
         
         self.log.info(f'sent ioctrlmsg to start video')
+
+        if blocking:
+            self.log.info(f'attempting to start video streaming (blocking)')
+
+            frame_buf = (c.c_char * FRAME_BUFFER_SIZE)()
+            frame_buf_size_recvd = c.c_int()
+            frame_buf_size_sent = c.c_int()
+            frame_info = tm.FRAMEINFO()
+            frame_info_size_recvd = c.c_int()
+            frame_number = c.c_int()
+            
+            frame_count = 0
+            fps_frames = 0
+            fps_time = int(time.time())
+            
+            while True:
+                try:
+                    frame_data_size = tw.avRecvFrameData2(
+                        self.device_state.channel_id,
+                        frame_buf,
+                        FRAME_BUFFER_SIZE,
+                        frame_buf_size_recvd,
+                        frame_buf_size_sent,
+                        frame_info,
+                        c.sizeof(tm.FRAMEINFO),
+                        frame_info_size_recvd,
+                        frame_number
+                    )
+                except te.TutkLibraryException as e:
+                    self.log.debug(
+                        f'got tutk library exception {e}'
+                    )
+
+                    # error codes we can probably safely ignore
+                    if e.args[0] in (
+                        tc.AVErrorCode.AV_ER_DATA_NOREADY,
+                        tc.AVErrorCode.AV_ER_LOSED_THIS_FRAME,
+                        tc.AVErrorCode.AV_ER_INCOMPLETE_FRAME
+                    ):
+                        time.sleep(0.01)
+                        continue
+
+                    # error codes we can't ignore
+                    else:
+                        self.log.warn(f'got tutk library exception: {e}')
+                        self._reset_state()
+                        break
+
+                frame_count += 1
+                cur_time = int(time.time())
+                time_span = cur_time - fps_time
+                dropped_frames = frame_count - frame_number.value
+
+                self.stream_info.frames_received = frame_count
+                self.stream_info.last_frame_received_time = cur_time
+                self.stream_info.last_frame_size = frame_data_size
+                self.stream_info.dropped_frames = dropped_frames
+                self.stream_info.video_format = StreamFormat(frame_info.codec_id)
+
+                dest_file.write(frame_buf[:frame_data_size])
+
+                if cur_time != fps_time and not time_span % STREAM_LOG_INTERVAL:
+                    fps = int((frame_count - fps_frames) / STREAM_LOG_INTERVAL)
+                    self.stream_info.fps = fps
+                    fps_frames = frame_count
+                    fps_time = cur_time
+
+                    self.log.info(f'status: {self.stream_info}')
+            
+            dest_file.close()

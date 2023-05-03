@@ -18,7 +18,8 @@ from .exceptions import (
 )
 from .models import (
     st_SInfo,
-    st_LanSearchInfo2
+    st_LanSearchInfo2,
+    FRAMEINFO
 )
 import tutk_wrapper.shared as shared
 
@@ -53,10 +54,10 @@ def avInitialize(max_channel_num: c.c_int = 1) -> None:
     func.argtypes = (c.c_int,)
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.avInitialize(max_channel_num)
+    rc = shared.library_instance.avInitialize(max_channel_num)
 
     if rc < AVErrorCode.AV_ER_NoERROR:
-        raise TutkLibraryException(AVErrorCode(rc).name)
+        raise TutkLibraryException(AVErrorCode(rc))
     
     shared.av_initialized = True
 
@@ -72,10 +73,77 @@ def avDeInitialize() -> None:
     func.argtypes = None
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.avDeInitialize()
+    rc = shared.library_instance.avDeInitialize()
 
     if rc != AVErrorCode.AV_ER_NoERROR:
-        raise TutkLibraryException(AVErrorCode(rc).name)
+        raise TutkLibraryException(AVErrorCode(rc))
+
+
+@requires_av_initialized
+@requires_tutk_library
+@log_args
+def avClientCleanBuf(channel_id: c.c_int = 1) -> None:
+    """
+    A client with multiple device connection application should call
+    this function to clean AV buffer while switch to another devices.
+    """
+    func = shared.library_instance.avClientCleanBuf
+    func.argtypes = (c.c_int,)
+    func.restype = c.c_int
+
+    rc = shared.library_instance.avClientCleanBuf(channel_id)
+
+    if rc != AVErrorCode.AV_ER_NoERROR:
+        raise TutkLibraryException(AVErrorCode(rc))
+
+
+@requires_av_initialized
+@requires_tutk_library
+@log_args
+def avRecvFrameData2(
+    channel_id: c.c_int,
+    frame_data_buffer: c.POINTER(c.c_char),
+    frame_data_buffer_size: c.c_int,
+    frame_data_size_received: c.POINTER(c.c_int),
+    frame_data_size_sent: c.POINTER(c.c_int),
+    frame_info: c.POINTER(FRAMEINFO),
+    frame_info_size: c.c_int,
+    frame_info_size_received: c.POINTER(c.c_int),
+    frame_number: c.POINTER(c.c_int)
+) -> c.c_int:
+    """
+    This function is used by AV servers or AV clients to send a AV IO control.
+    """
+    func = shared.library_instance.avRecvFrameData2
+    func.argtypes = (
+        c.c_int,
+        c.POINTER(c.c_char),
+        c.c_int,
+        c.POINTER(c.c_int),
+        c.POINTER(c.c_int),
+        c.POINTER(FRAMEINFO),
+        c.c_int,
+        c.POINTER(c.c_int),
+        c.POINTER(c.c_int)
+    )
+    func.restype = c.c_int
+
+    rc = shared.library_instance.avRecvFrameData2(
+        channel_id,
+        frame_data_buffer,
+        frame_data_buffer_size,
+        frame_data_size_received,
+        frame_data_size_sent,
+        frame_info,
+        frame_info_size,
+        frame_info_size_received,
+        frame_number
+    )
+
+    if rc < AVErrorCode.AV_ER_NoERROR:
+        raise TutkLibraryException(AVErrorCode(rc))
+    
+    return rc
 
 
 @requires_av_initialized
@@ -99,7 +167,7 @@ def avSendIOCtrl(
     )
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.avSendIOCtrl(
+    rc = shared.library_instance.avSendIOCtrl(
         channel_id,
         io_ctrl_type,
         io_ctrl_buffer,
@@ -107,7 +175,7 @@ def avSendIOCtrl(
     )
 
     if rc != AVErrorCode.AV_ER_NoERROR:
-        raise TutkLibraryException(AVErrorCode(rc).name)
+        raise TutkLibraryException(AVErrorCode(rc))
     
     return rc
 
@@ -142,7 +210,7 @@ def avClientStart2(
     )
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.avClientStart2(
+    rc = shared.library_instance.avClientStart2(
         session_id,
         device_account_name,
         device_password,
@@ -169,7 +237,7 @@ def IOTC_Connect_ByUID(device_uid: c.POINTER(c.c_char)) -> c.c_int:
     func.argtypes = (c.POINTER(c.c_char),)
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_Connect_ByUID(device_uid)
+    rc = shared.library_instance.IOTC_Connect_ByUID(device_uid)
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
         raise TutkLibraryException(IOTCErrorCode(rc).name)
@@ -188,7 +256,7 @@ def IOTC_Get_SessionID() -> c.c_int:
     func.argtypes = None
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_Get_SessionID()
+    rc = shared.library_instance.IOTC_Get_SessionID()
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
         raise TutkLibraryException(IOTCErrorCode(rc).name)
@@ -218,7 +286,7 @@ def IOTC_Connect_ByUID_Parallel(
     )
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_Connect_ByUID_Parallel(
+    rc = shared.library_instance.IOTC_Connect_ByUID_Parallel(
         device_uid,
         session_id
     )
@@ -246,7 +314,7 @@ def IOTC_Session_Check(
     )
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_Session_Check(
+    rc = shared.library_instance.IOTC_Session_Check(
         session_id,
         session_info
     )
@@ -274,7 +342,7 @@ def IOTC_Lan_Search2(
     )
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_Lan_Search2(
+    rc = shared.library_instance.IOTC_Lan_Search2(
         search_info_array,
         search_info_size,
         timeout_ms
@@ -298,7 +366,7 @@ def IOTC_Initialize2(udp_port: c.c_ushort = 0) -> c.c_int:
     func.argtypes = (c.c_ushort,)
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_Initialize2(udp_port)
+    rc = shared.library_instance.IOTC_Initialize2(udp_port)
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:
         raise TutkLibraryException(IOTCErrorCode(rc).name)
@@ -320,7 +388,7 @@ def IOTC_DeInitialize() -> c.c_int:
     func.argtypes = None
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_DeInitialize()
+    rc = shared.library_instance.IOTC_DeInitialize()
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:
         raise TutkLibraryException(IOTCErrorCode(rc).name)
@@ -345,7 +413,7 @@ def IOTC_Session_Channel_ON(
     )
     func.restype = c.c_int
 
-    rc: c.c_int = shared.library_instance.IOTC_Session_Channel_ON(
+    rc = shared.library_instance.IOTC_Session_Channel_ON(
         session_id,
         channel_id
     )
@@ -370,7 +438,7 @@ def IOTC_Session_Get_Free_Channel(session_id: c.c_int) -> c.c_int:
     func.argtypes = (c.c_int,)
     func.restype = c.c_int
 
-    rc: c.c_int = \
+    rc = \
         shared.library_instance.IOTC_Session_Get_Free_Channel(session_id)
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
@@ -389,7 +457,7 @@ def IOTC_Session_Close(session_id: c.c_int) -> None:
     func.argtypes = (c.c_int,)
     func.restype = c.c_int
 
-    rc: c.c_int = \
+    rc = \
         shared.library_instance.IOTC_Session_Close(session_id)
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:

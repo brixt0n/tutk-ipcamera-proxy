@@ -1,5 +1,31 @@
 import ctypes as c
 
+class FRAMEINFO(c.Structure):
+    """
+    Metadata about a video frame received via avRecvFrameData2
+    """
+    
+    """
+    unsigned short codec_id;	// Media codec type defined in sys_mmdef.h,
+								// MEDIA_CODEC_AUDIO_PCMLE16 for audio,
+								// MEDIA_CODEC_VIDEO_H264 for video.
+	unsigned char flags;		// Combined with IPC_FRAME_xxx.
+	unsigned char cam_index;	// 0 - n
+	unsigned char onlineNum;	// number of client connected this device
+	unsigned char reserve1[3];
+	unsigned int reserve2;	//
+	unsigned int timestamp;	// Timestamp of the frame, in milliseconds
+    """
+    _fields_ = [
+        ("codec_id", c.c_ushort),
+        ("flags", c.c_ubyte),
+        ("cam_index", c.c_ubyte),
+        ("onlineNum", c.c_ubyte),
+        ("reserve1", c.c_ubyte * 3),
+        ("reserve2", c.c_uint),
+        ("timestamp", c.c_uint)
+    ]
+
 
 class st_SInfo(c.Structure):
     """

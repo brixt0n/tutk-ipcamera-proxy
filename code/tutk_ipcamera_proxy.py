@@ -10,8 +10,7 @@ import argparse
 import logging
 from tutk_proxy.models import (
     TutkDevice,
-    TutkDeviceSettings,
-    TutkDeviceState
+    TutkDeviceSettings
 )
 
 log = logging.getLogger(__name__)
@@ -89,7 +88,7 @@ def get_args() -> dict:
         '-f',
         '--filename',
         required=True,
-        type=argparse.FileType(mode='wb', bufsize=0),
+        type=argparse.FileType(mode='ab', bufsize=0),
         help='file to write video frames to; use - for stdout'
     )
     
@@ -149,6 +148,7 @@ def action_stream(
     )
 
     d.connect()
+
     d.stream_to(
         dest_file,
         True
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     )
 
     if args.action == 'scan':
-        action_scan(timeout=args.timeout)
+        action_scan(timeout_ms=args.timeout)
     elif args.action == 'stream':
         action_stream(
             uid=args.deviceuid,
