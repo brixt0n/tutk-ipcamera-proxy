@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import time
+import datetime
 import tutk_wrapper.wrapper as tw
 import tutk_wrapper.models as tm
 import tutk_wrapper.exceptions as te
@@ -38,7 +39,8 @@ class TutkDeviceStreamInfo():
 class TutkDeviceState():
     client_sid: int = None
     device_sid: int = None
-    channel_id: int = None
+    channel_id_video: int = None
+    channel_id_control: int = None
     session_mode: IOTCSessionMode = None
     packets_tx: int = 0
     packets_rx: int = 0
@@ -81,7 +83,7 @@ class TutkDevice():
         raise NotImplementedError()
 
     @log_args
-    def check_session(self) -> bool:
+    def _check_session(self) -> bool:
         """
         Checks device SID is active.
         """
@@ -113,6 +115,59 @@ class TutkDevice():
         self.log.info(f'current device_state={self.device_state}')
 
         return True
+    
+    @log_args
+    def _send_ioctrl_msg(
+        self,
+        message_type: tc.AvIOCtrlMsgType,
+        message_bytes: bytes
+    ) -> bool:
+        self.log.info(f'attempting to send ioctrlmsg')
+        message_padded = message_bytes + bytes(8 - len(message_bytes))
+
+        try:
+            tw.avSendIOCtrl(
+                self.device_state.channel_id_control,
+                message_type,
+                message_padded,
+                8
+            )
+        except te.TutkLibraryException as e:
+            self.log.warn(f'got tutk library exception: {e}')
+            self._reset_state()
+            return False
+        
+        self.log.info(f'sent ioctrlmsg')
+
+        return True
+    
+    @log_args
+    def _get_av_channel(self) -> int:
+        """
+        Gets an AV channel from the current device
+        """
+        self.log.info(f'attempting to get an av channel')
+        resend = c.c_int()
+
+        try:
+            channel_id: int = tw.avClientStart2(
+                self.device_state.device_sid,
+                self.device_settings.username.encode(),
+                self.device_settings.password.encode(),
+                self.device_settings.timeout_s,
+                None,
+                0,
+                resend
+            )
+        except te.TutkLibraryException as e:
+            self.log.warn(f'got tutk library exception: {e}')
+            self._reset_state()
+            return
+
+        self.device_state.resend_on = resend.value == 1
+        self.log.info(f'got av channel: {str(channel_id)}')
+
+        return channel_id
 
     @log_args
     def connect(self) -> bool:
@@ -129,7 +184,7 @@ class TutkDevice():
         try:
             # get a client-side session
             self.log.debug(f'getting client-side session')
-            client_sid: int = tw.IOTC_Get_SessionID()
+            client_sid = tw.IOTC_Get_SessionID()
             self.log.debug(
                 f'got client-side session, '
                 f'client_sid={str(client_sid)}'
@@ -137,7 +192,7 @@ class TutkDevice():
 
             # get a device-side session
             self.log.debug(f'getting device-side session')
-            device_sid: int = tw.IOTC_Connect_ByUID_Parallel(
+            device_sid = tw.IOTC_Connect_ByUID_Parallel(
                 self.uid.encode(),
                 client_sid
             )
@@ -159,6 +214,51 @@ class TutkDevice():
 
 
     @log_args
+    def sync_time(self) -> None:
+        self.log.info('checking session validity')
+
+        if not self._check_session():
+            self.log.warn('unable to stream; no valid session')
+            return
+        
+        self.log.info('session is valid')
+        self.log.info('attempting to get av channel')
+
+        channel = self._get_av_channel()
+        if channel == None:
+            self.log.warn('unable to get av channel')
+            return
+
+        self.device_state.channel_id_control = channel
+        self.log.info('got av channel')
+        
+        tz_diff = (
+            datetime.datetime.now() 
+            - datetime.datetime.utcnow()
+        ).total_seconds()
+
+        current_time_epoch = int(datetime.datetime.now().timestamp() + tz_diff)
+        message_bytes = current_time_epoch.to_bytes(
+                length=4,
+                byteorder='little'
+        )
+
+        self.log.info(f'current timezone to gmt difference is {tz_diff}')
+        self.log.info(f'attempting to send ioctrlmsg')
+        
+        success = self._send_ioctrl_msg(
+            message_type=tc.AvIOCtrlMsgType.IOTYPE_USER_IPCAM_SET_TIME,
+            message_bytes=message_bytes
+        )
+
+        if success:
+            self.log.info(f'synced time')
+        else:
+            self.log.warn(f'error syncing time')
+            return
+
+
+    @log_args
     def stream_to(
         self,
         dest_file: BinaryIO,
@@ -172,48 +272,27 @@ class TutkDevice():
         self.device_state.streaming = True
         self.log.info('checking session validity')
 
-        if not self.check_session():
+        if not self._check_session():
             self.log.warn('unable to stream; no valid session')
             return
         
         self.log.info('session is valid')
-        self.log.info(f'attempting to get an av channel')
-        resend = c.c_int()
+        self.log.info('attempting to get av channel')
 
-        try:
-            channel_id: int = tw.avClientStart2(
-                self.device_state.device_sid,
-                self.device_settings.username.encode(),
-                self.device_settings.password.encode(),
-                self.device_settings.timeout_s,
-                None,
-                0,
-                resend
-            )
-        except te.TutkLibraryException as e:
-            self.log.warn(f'got tutk library exception: {e}')
-            self._reset_state()
+        channel = self._get_av_channel()
+        if channel == None:
+            self.log.warn('unable to get av channel')
             return
 
-        self.device_state.channel_id = channel_id
-        self.device_state.resend_on = resend.value == 1
-        self.log.info(f'got av channel, device state: {self.device_state}')
-        self.log.info(f'attempting to clean av client buffer')
-
-        try:
-            tw.avClientCleanBuf(self.device_state.channel_id)
-        except te.TutkLibraryException as e:
-            self.log.warn(f'got tutk library exception: {e}')
-            self._reset_state()
-            return
-
-        self.log.info(f'cleaned av client buffer')
+        self.device_state.channel_id_video = channel
+        self.log.info('got av channel')
+        
         self.log.info(f'attempting to send ioctrlmsg to start video')
         io_buffer = (c.c_char * 8)()
 
         try:
             tw.avSendIOCtrl(
-                self.device_state.channel_id,
+                self.device_state.channel_id_video,
                 tc.AvIOCtrlMsgType.IOTYPE_USER_IPCAM_START,
                 io_buffer,
                 8
@@ -242,7 +321,7 @@ class TutkDevice():
             while True:
                 try:
                     frame_data_size = tw.avRecvFrameData2(
-                        self.device_state.channel_id,
+                        self.device_state.channel_id_video,
                         frame_buf,
                         FRAME_BUFFER_SIZE,
                         frame_buf_size_recvd,

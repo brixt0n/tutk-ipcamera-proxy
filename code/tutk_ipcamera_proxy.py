@@ -22,6 +22,7 @@ def get_args() -> dict:
     action.required = True
     scan = action.add_parser('scan')
     stream = action.add_parser('stream')
+    sync = action.add_parser('sync')
     group_verbosity = parser.add_mutually_exclusive_group()
 
     group_verbosity.add_argument(
@@ -56,7 +57,7 @@ def get_args() -> dict:
         '--deviceuid',
         required=True,
         type=str,
-        help='device UID to stream video from'
+        help='device UID'
     )
 
     stream.add_argument(
@@ -91,6 +92,39 @@ def get_args() -> dict:
         type=argparse.FileType(mode='ab', bufsize=0),
         help='file to write video frames to; use - for stdout'
     )
+
+    sync.add_argument(
+        '-d',
+        '--deviceuid',
+        required=True,
+        type=str,
+        help='device UID'
+    )
+
+    sync.add_argument(
+        '-u',
+        '--username',
+        required=True,
+        type=str,
+        help='username to use to connect to device'
+    )
+
+    sync.add_argument(
+        '-p',
+        '--password',
+        required=True,
+        type=str,
+        help='password to use to connect to device'
+    )
+
+    sync.add_argument(
+        '-t',
+        '--timeout',
+        required=False,
+        default=5000,
+        type=int,
+        help='timeout for scanning and connecting to devices'
+    )
     
     return parser.parse_args()
 
@@ -102,6 +136,23 @@ def init_logging(log_level: int) -> None:
         '%(message)s'
     )
 
+def find_device(
+    devices: list[TutkDevice],
+    uid: str
+) -> TutkDevice:
+    log.info(f'trying to find device with uid={uid}')
+
+    return_device = None
+
+    for d in devices:
+        if not d.uid == uid:
+            continue
+
+        log.info(f'found device with uid={uid}')
+        return_device = d
+        break
+
+    return return_device
 
 def initialise(
     verbose: bool,
@@ -126,33 +177,55 @@ def action_stream(
     dest_file: BinaryIO
 ) -> None:
     devices: list[TutkDevice] = proxy.scan_local_subnet(timeout_ms=timeout_ms)
-    target_device: TutkDevice = None
 
-    log.info(f'trying to find device with uid={uid}')
-    for d in devices:
-        if not d.uid == uid:
-            continue
-
-        log.info(f'found device with uid={uid}')
-        target_device = d
-        break
+    target_device = find_device(
+        devices=devices,
+        uid=uid
+    )
 
     if not target_device:
         log.fatal(f'unable to find device with uid={uid}')
-        exit(1)
+        return
 
-    d.device_settings = TutkDeviceSettings(
+    target_device.device_settings = TutkDeviceSettings(
         username=username,
         password=password,
-        timeout_s = int(timeout_ms / 1000)
+        timeout_s=int(timeout_ms / 1000)
+    )
+    
+    target_device.connect()
+
+    target_device.stream_to(
+        dest_file=dest_file,
+        blocking=True
     )
 
-    d.connect()
 
-    d.stream_to(
-        dest_file,
-        True
+def action_sync(
+    uid: str,
+    username: str,
+    password: str,
+    timeout_ms: int
+) -> None:
+    devices: list[TutkDevice] = proxy.scan_local_subnet(timeout_ms=timeout_ms)
+
+    target_device = find_device(
+        devices=devices,
+        uid=uid
     )
+
+    if not target_device:
+        log.fatal(f'unable to find device with uid={uid}')
+        return
+
+    target_device.device_settings = TutkDeviceSettings(
+        username=username,
+        password=password,
+        timeout_s=int(timeout_ms / 1000)
+    )
+
+    target_device.connect()
+    target_device.sync_time()
 
 
 def action_scan(timeout_ms: int = 5000) -> list[TutkDevice]:
@@ -182,8 +255,17 @@ if __name__ == "__main__":
         args.quiet
     )
 
+    if args.action == 'sync':
+        action_sync(
+            uid=args.deviceuid,
+            username=args.username,
+            password=args.password,
+            timeout_ms=args.timeout
+        )
+
     if args.action == 'scan':
         action_scan(timeout_ms=args.timeout)
+
     elif args.action == 'stream':
         action_stream(
             uid=args.deviceuid,

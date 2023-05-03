@@ -13,10 +13,10 @@ from textwrap import dedent
 
 log = logging.getLogger(__name__)
 
-# connect to device by <device object>
-# start recording <device> (to file)
+# todo
 # stop recording
 # get single frame (png)
+
 @log_args
 def initialise(library_path: str='tutk_wrapper/lib/libIOTCAPIs_ALL.so') \
     -> None:
