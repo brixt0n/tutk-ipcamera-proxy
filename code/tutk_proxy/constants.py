@@ -1,7 +1,7 @@
 from enum import IntEnum
 
 FRAME_BUFFER_SIZE = 128000
-STREAM_LOG_INTERVAL = 5 # seconds
+STREAM_LOG_INTERVAL = 30 # seconds
 
 class StreamFormat(IntEnum):
     MEDIA_CODEC_UNKNOWN = 0x00

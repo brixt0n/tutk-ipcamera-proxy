@@ -364,6 +364,7 @@ class TutkDevice():
 
                 dest_file.write(frame_buf[:frame_data_size])
 
+                # log stats every STREAM_LOG_INTERVAL seconds
                 if cur_time != fps_time and not time_span % STREAM_LOG_INTERVAL:
                     fps = int((frame_count - fps_frames) / STREAM_LOG_INTERVAL)
                     self.stream_info.fps = fps

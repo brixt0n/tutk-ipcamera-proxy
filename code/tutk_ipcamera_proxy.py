@@ -141,18 +141,9 @@ def find_device(
     uid: str
 ) -> TutkDevice:
     log.info(f'trying to find device with uid={uid}')
+    matches = [d for d in devices if d.uid == uid]
 
-    return_device = None
-
-    for d in devices:
-        if not d.uid == uid:
-            continue
-
-        log.info(f'found device with uid={uid}')
-        return_device = d
-        break
-
-    return return_device
+    return next(iter(matches), None)
 
 def initialise(
     verbose: bool,
@@ -160,8 +151,8 @@ def initialise(
 ):
     # configure log levels
     init_logging(
-        10 if verbose 
-        else 50 if quiet 
+        10 if verbose
+        else 50 if quiet
         else 20
     )
 
@@ -186,6 +177,8 @@ def action_stream(
     if not target_device:
         log.fatal(f'unable to find device with uid={uid}')
         return
+    
+    log.info(f'found device with uid={uid}')
 
     target_device.device_settings = TutkDeviceSettings(
         username=username,
@@ -217,6 +210,8 @@ def action_sync(
     if not target_device:
         log.fatal(f'unable to find device with uid={uid}')
         return
+    
+    log.info(f'found device with uid={uid}')
 
     target_device.device_settings = TutkDeviceSettings(
         username=username,
@@ -254,6 +249,8 @@ if __name__ == "__main__":
         args.verbose,
         args.quiet
     )
+
+    log.info(f'args: {args}')
 
     if args.action == 'sync':
         action_sync(
