@@ -3,7 +3,13 @@
 """
 Example of using the tutk_proxy package to perform scanning and streaming 
 using the underlying tutk_wrapper package.
+
+Actions supported:
+    - scan: scans local subnet for compatible devices using multicast packet
+    - sync: syncs the local time with a remote device
+    - stream: streams raw video frames from a remote device to target file
 """
+
 from tutk_proxy import proxy
 from typing import BinaryIO
 import argparse
@@ -136,6 +142,7 @@ def init_logging(log_level: int) -> None:
         '%(message)s'
     )
 
+
 def find_device(
     devices: list[TutkDevice],
     uid: str
@@ -144,6 +151,7 @@ def find_device(
     matches = [d for d in devices if d.uid == uid]
 
     return next(iter(matches), None)
+
 
 def initialise(
     verbose: bool,
