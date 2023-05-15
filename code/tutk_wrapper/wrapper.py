@@ -221,7 +221,7 @@ def avClientStart2(
     )
 
     if rc < AVErrorCode.AV_ER_NoERROR:
-        raise TutkLibraryException(AVErrorCode(rc).name)
+        raise TutkLibraryException(AVErrorCode(rc))
     
     return rc
 
@@ -240,7 +240,7 @@ def IOTC_Connect_ByUID(device_uid: c.POINTER(c.c_char)) -> c.c_int:
     rc = shared.library_instance.IOTC_Connect_ByUID(device_uid)
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
     
     return rc
 
@@ -259,7 +259,7 @@ def IOTC_Get_SessionID() -> c.c_int:
     rc = shared.library_instance.IOTC_Get_SessionID()
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
     
     return rc
 
@@ -292,7 +292,7 @@ def IOTC_Connect_ByUID_Parallel(
     )
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
     
     return rc
 
@@ -320,7 +320,7 @@ def IOTC_Session_Check(
     )
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
 
 
 @requires_tutk_library
@@ -349,7 +349,7 @@ def IOTC_Lan_Search2(
     )
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
 
     return rc
 
@@ -369,7 +369,7 @@ def IOTC_Initialize2(udp_port: c.c_ushort = 0) -> c.c_int:
     rc = shared.library_instance.IOTC_Initialize2(udp_port)
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
     
     return rc
 
@@ -391,7 +391,7 @@ def IOTC_DeInitialize() -> c.c_int:
     rc = shared.library_instance.IOTC_DeInitialize()
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
     
     return rc
 
@@ -419,7 +419,7 @@ def IOTC_Session_Channel_ON(
     )
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
     
     return rc
 
@@ -442,7 +442,7 @@ def IOTC_Session_Get_Free_Channel(session_id: c.c_int) -> c.c_int:
         shared.library_instance.IOTC_Session_Get_Free_Channel(session_id)
 
     if rc < IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
     
     return rc
 
@@ -461,4 +461,4 @@ def IOTC_Session_Close(session_id: c.c_int) -> None:
         shared.library_instance.IOTC_Session_Close(session_id)
 
     if rc != IOTCErrorCode.IOTC_ER_NoERROR:
-        raise TutkLibraryException(IOTCErrorCode(rc).name)
+        raise TutkLibraryException(IOTCErrorCode(rc))
