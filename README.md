@@ -2,7 +2,9 @@
 
 ## Overview
 
-Python packages and scripts to interact with generic Chinese IP cameras using the popular TUTK protocol.  The code is split into 3 parts:
+Python packages and scripts to interact with generic Chinese IP cameras using the popular TUTK protocol.  Mine were bought on AliExpress.
+
+The code is split into 3 parts:
 
 1. Example script `tutk_ipcamera_proxy.py` which uses the `tutk_proxy` package.  This script has basic support for device discovery, syncing the time and streaming video.
 2. The `tutk_proxy` package, which provides python-friendly functions to scan for devices, representing devices as a model and performing actions against devices.
